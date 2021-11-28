@@ -7,39 +7,43 @@ using Google.Protobuf.WellKnownTypes;
 
 namespace AElf.Contracts.Faucet
 {
-    public class FaucetContract : FaucetContractContainer.FaucetContractBase
+    public partial class FaucetContract : FaucetContractContainer.FaucetContractBase
     {
         public override Empty Initialize(InitializeInput input)
         {
-            State.OwnerMap[Context.Variables.NativeSymbol] = input.Admin;
+            var nativeSymbol = Context.Variables.NativeSymbol;
+            State.OwnerMap[nativeSymbol] = input.Admin ?? Context.Sender;
+            State.AmountLimitMap[nativeSymbol] = input.AmountLimit == 0 ? DefaultLimitAmount : input.AmountLimit;
+            State.IntervalMinutesMap[nativeSymbol] =
+                input.IntervalMinutes == 0 ? DefaultIntervalMinutes : input.IntervalMinutes;
             State.TokenContract.Value =
                 Context.GetContractAddressByName(SmartContractConstants.TokenContractSystemName);
             return new Empty();
         }
 
-        public override Empty TuneOn(TuneInput input)
+        public override Empty TurnOn(TurnInput input)
         {
             var symbol = ReturnNativeSymbolIfEmpty(input.Symbol);
             AssertSenderIsOwner(symbol);
             State.OffAtMap.Remove(symbol);
             State.OnAtMap[symbol] = input.At == null ? Context.CurrentBlockTime : input.At;
-            Context.Fire(new FaucetTuned
+            Context.Fire(new FaucetTurned
             {
-                IsTunedOn = true,
+                IsTurnedOn = true,
                 Symbol = symbol
             });
             return new Empty();
         }
 
-        public override Empty TuneOff(TuneInput input)
+        public override Empty TurnOff(TurnInput input)
         {
             var symbol = ReturnNativeSymbolIfEmpty(input.Symbol);
             AssertSenderIsOwner(symbol);
             State.OnAtMap.Remove(symbol);
             State.OffAtMap[symbol] = input.At == null ? Context.CurrentBlockTime : input.At;
-            Context.Fire(new FaucetTuned
+            Context.Fire(new FaucetTurned
             {
-                IsTunedOn = false,
+                IsTurnedOn = false,
                 Symbol = symbol
             });
             return new Empty();
@@ -49,6 +53,9 @@ namespace AElf.Contracts.Faucet
         {
             AssertSenderIsAdmin();
             State.OwnerMap[input.Symbol] = input.Owner;
+            State.AmountLimitMap[input.Symbol] = input.AmountLimit == 0 ? DefaultLimitAmount : input.AmountLimit;
+            State.IntervalMinutesMap[input.Symbol] =
+                input.IntervalMinutes == 0 ? DefaultIntervalMinutes : input.IntervalMinutes;
             Context.Fire(new FaucetCreated
             {
                 Owner = input.Owner,
@@ -148,21 +155,36 @@ namespace AElf.Contracts.Faucet
             return State.OwnerMap[ReturnNativeSymbolIfEmpty(input.Value)];
         }
 
+        public override FaucetStatus GetFaucetStatus(StringValue input)
+        {
+            var symbol = ReturnNativeSymbolIfEmpty(input.Value);
+
+            var maybeOnAt = State.OnAtMap[symbol];
+            var isOn = maybeOnAt != null;
+            var status = new FaucetStatus
+            {
+                IsOn = isOn,
+                TurnAt = isOn ? maybeOnAt : State.OffAtMap[symbol]
+            };
+
+            return status;
+        }
+
         private void AssertSenderIsOwner(string symbol)
         {
-            Assert(Context.Sender == State.OwnerMap[symbol], "No permission.");
+            Assert(Context.Sender == State.OwnerMap[symbol], $"No permission to operate faucet of {symbol}.");
         }
-        
+
         private void AssertSenderIsAdmin()
         {
             Assert(Context.Sender == State.OwnerMap[Context.Variables.NativeSymbol], "No permission.");
         }
-        
+
         private void AssertFaucetIsOff(string symbol)
         {
             Assert(State.OnAtMap[symbol] == null, $"Faucet of {symbol} is on.");
         }
-        
+
         private void AssertFaucetIsOn(string symbol)
         {
             Assert(State.OffAtMap[symbol] == null, $"Faucet of {symbol} is off.");

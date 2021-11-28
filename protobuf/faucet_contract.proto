@@ -21,9 +21,9 @@ service FaucetContract {
     }
     rpc Pour (PourInput) returns (google.protobuf.Empty) {
     }
-    rpc TuneOn (TuneInput) returns (google.protobuf.Empty) {
+    rpc TurnOn (TurnInput) returns (google.protobuf.Empty) {
     }
-    rpc TuneOff (TuneInput) returns (google.protobuf.Empty) {
+    rpc TurnOff (TurnInput) returns (google.protobuf.Empty) {
     }
     rpc SetLimit (SetLimitInput) returns (google.protobuf.Empty) {
     }
@@ -39,16 +39,23 @@ service FaucetContract {
     rpc GetOwner (google.protobuf.StringValue) returns (aelf.Address) {
         option (aelf.is_view) = true;
     }
+    rpc GetFaucetStatus (google.protobuf.StringValue) returns (FaucetStatus) {
+        option (aelf.is_view) = true;
+    }
 }
 
 message InitializeInput {
     aelf.Address admin = 1;
+    int64 amount_limit = 2;
+    int64 interval_minutes = 3;
 }
 
 message NewFaucetInput {
     string symbol = 1;
     int64 amount = 2;
     aelf.Address owner = 3;
+    int64 amount_limit = 4;
+    int64 interval_minutes = 5;
 }
 
 message PourInput {
@@ -56,7 +63,7 @@ message PourInput {
     int64 amount = 2;
 }
 
-message TuneInput {
+message TurnInput {
     string symbol = 1;
     google.protobuf.Timestamp at = 2;
 }
@@ -83,6 +90,11 @@ message ReturnInput {
     int64 amount = 2;
 }
 
+message FaucetStatus {
+    bool is_on = 1;
+    google.protobuf.Timestamp turn_at = 2;
+}
+
 // Events
 
 message FaucetCreated {
@@ -98,8 +110,8 @@ message Poured {
     int64 amount = 2;
 }
 
-message FaucetTuned {
+message FaucetTurned {
     option (aelf.is_event) = true;
-    bool is_tuned_on = 1;
+    bool is_turned_on = 1;
     string symbol = 2;
 }

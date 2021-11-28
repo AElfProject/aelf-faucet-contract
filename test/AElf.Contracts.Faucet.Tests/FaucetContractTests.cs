@@ -1,8 +1,7 @@
 using System.Linq;
 using System.Threading.Tasks;
+using AElf.Contracts.MultiToken;
 using AElf.ContractTestBase.ContractTestKit;
-using AElf.Types;
-using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Shouldly;
 using Xunit;
@@ -16,16 +15,113 @@ namespace AElf.Contracts.Faucet
         {
             // Get a stub for testing.
             var keyPair = SampleAccount.Accounts.First().KeyPair;
-            var stub = GetFaucetContractStub(keyPair);
+            var adminStub = GetFaucetContractStub(keyPair);
+            var adminTokenStub = GetTokenContractStub(keyPair);
+            var userStub = GetFaucetContractStub(SampleAccount.Accounts.Skip(1).First().KeyPair);
+            var userTokenStub = GetTokenContractStub(SampleAccount.Accounts.Skip(1).First().KeyPair);
 
-            // Use CallAsync or SendAsync method of this stub to test.
-            // await stub.Hello.SendAsync(new Empty())
+            await adminStub.Initialize.SendAsync(new InitializeInput());
 
-            // Or maybe you want to get its return value.
-            // var output = (await stub.Hello.SendAsync(new Empty())).Output;
+            // Check faucet status.
+            {
+                var faucetStatus = await adminStub.GetFaucetStatus.CallAsync(new StringValue
+                {
+                    Value = "ELF"
+                });
+                faucetStatus.IsOn.ShouldBeFalse();
+                faucetStatus.TurnAt.ShouldBeNull();
+            }
 
-            // Or transaction result.
-            // var transactionResult = (await stub.Hello.SendAsync(new Empty())).TransactionResult;
+            // Turn on.
+            await adminStub.TurnOn.SendAsync(new TurnInput());
+
+            // Check owner.
+            var owner = await adminStub.GetOwner.CallAsync(new StringValue
+            {
+                Value = "ELF"
+            });
+            owner.ShouldBe(SampleAccount.Accounts.First().Address);
+
+            // Check faucet status.
+            {
+                var faucetStatus = await adminStub.GetFaucetStatus.CallAsync(new StringValue
+                {
+                    Value = "ELF"
+                });
+                faucetStatus.IsOn.ShouldBeTrue();
+                faucetStatus.TurnAt.ShouldNotBeNull();
+            }
+
+            // Pour.
+            await adminTokenStub.Approve.SendAsync(new ApproveInput
+            {
+                Spender = DAppContractAddress,
+                Symbol = "ELF",
+                Amount = long.MaxValue
+            });
+            await adminStub.Pour.SendAsync(new PourInput
+            {
+                Amount = 1000_00000000
+            });
+
+
+            // User takes.
+            {
+                await userStub.Take.SendAsync(new TakeInput
+                {
+                    Symbol = "ELF",
+                    Amount = 100_00000000
+                });
+                // Check user balance.
+                var balance = (await adminTokenStub.GetBalance.CallAsync(new GetBalanceInput
+                {
+                    Owner = SampleAccount.Accounts.Skip(1).First().Address,
+                    Symbol = "ELF"
+                })).Balance;
+                balance.ShouldBe(100_00000000);
+            }
+
+            // User returns.
+            {
+                await userTokenStub.Approve.SendAsync(new ApproveInput
+                {
+                    Spender = DAppContractAddress,
+                    Symbol = "ELF",
+                    Amount = long.MaxValue
+                });
+                await userStub.Return.SendAsync(new ReturnInput
+                {
+                    Symbol = "ELF"
+                });
+                // Check user balance.
+                var balance = (await adminTokenStub.GetBalance.CallAsync(new GetBalanceInput
+                {
+                    Owner = SampleAccount.Accounts.Skip(1).First().Address,
+                    Symbol = "ELF"
+                })).Balance;
+                balance.ShouldBe(0);
+            }
+
+            // Turn off.
+            await adminStub.TurnOff.SendAsync(new TurnInput());
+
+            // Check faucet status.
+            {
+                var faucetStatus = await adminStub.GetFaucetStatus.CallAsync(new StringValue
+                {
+                    Value = "ELF"
+                });
+                faucetStatus.IsOn.ShouldBeFalse();
+                faucetStatus.TurnAt.ShouldNotBeNull();
+            }
+
+            // User should be failed to take again.
+            var executionResult = await userStub.Take.SendWithExceptionAsync(new TakeInput
+            {
+                Symbol = "ELF",
+                Amount = 100_00000000
+            });
+            executionResult.TransactionResult.Error.ShouldContain("is off");
         }
     }
 }
