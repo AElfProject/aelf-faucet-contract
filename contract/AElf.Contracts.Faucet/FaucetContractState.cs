@@ -12,7 +12,7 @@ namespace AElf.Contracts.Faucet
         public MappedState<string, Address> OwnerMap { get; set; }
         public MappedState<string, Timestamp> OnAtMap { get; set; }
         public MappedState<string, Timestamp> OffAtMap { get; set; }
-        public MappedState<string, long> AmountLimitMap { get; set; }
+        public MappedState<string, long> LimitAmountMap { get; set; }
         public MappedState<string, long> IntervalMinutesMap { get; set; }
         public MappedState<string, Address, bool> BanMap { get; set; }
 

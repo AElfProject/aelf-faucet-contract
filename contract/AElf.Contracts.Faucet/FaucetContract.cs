@@ -13,7 +13,7 @@ namespace AElf.Contracts.Faucet
         {
             var nativeSymbol = Context.Variables.NativeSymbol;
             State.OwnerMap[nativeSymbol] = input.Admin ?? Context.Sender;
-            State.AmountLimitMap[nativeSymbol] = input.AmountLimit == 0 ? DefaultLimitAmount : input.AmountLimit;
+            State.LimitAmountMap[nativeSymbol] = input.AmountLimit == 0 ? DefaultLimitAmount : input.AmountLimit;
             State.IntervalMinutesMap[nativeSymbol] =
                 input.IntervalMinutes == 0 ? DefaultIntervalMinutes : input.IntervalMinutes;
             State.TokenContract.Value =
@@ -53,7 +53,7 @@ namespace AElf.Contracts.Faucet
         {
             AssertSenderIsAdmin();
             State.OwnerMap[input.Symbol] = input.Owner;
-            State.AmountLimitMap[input.Symbol] = input.AmountLimit == 0 ? DefaultLimitAmount : input.AmountLimit;
+            State.LimitAmountMap[input.Symbol] = input.AmountLimit == 0 ? DefaultLimitAmount : input.AmountLimit;
             State.IntervalMinutesMap[input.Symbol] =
                 input.IntervalMinutes == 0 ? DefaultIntervalMinutes : input.IntervalMinutes;
             Context.Fire(new FaucetCreated
@@ -76,6 +76,11 @@ namespace AElf.Contracts.Faucet
                 Symbol = symbol,
                 Amount = input.Amount
             });
+            Context.Fire(new Poured
+            {
+                Symbol = symbol,
+                Amount = input.Amount
+            });
             return new Empty();
         }
 
@@ -83,8 +88,22 @@ namespace AElf.Contracts.Faucet
         {
             var symbol = ReturnNativeSymbolIfEmpty(input.Symbol);
             AssertSenderIsOwner(symbol);
-            State.AmountLimitMap[symbol] = input.AmountLimit;
-            State.IntervalMinutesMap[symbol] = input.IntervalMinutes;
+            if (input.AmountLimit != 0)
+            {
+                State.LimitAmountMap[symbol] = input.AmountLimit;
+            }
+
+            if (input.IntervalMinutes != 0)
+            {
+                State.IntervalMinutesMap[symbol] = input.IntervalMinutes;
+            }
+
+            Context.Fire(new LimitChanged
+            {
+                Symbol = symbol,
+                LimitAmount = State.LimitAmountMap[symbol],
+                IntervalMinutes = State.IntervalMinutesMap[symbol]
+            });
             return new Empty();
         }
 
@@ -101,6 +120,33 @@ namespace AElf.Contracts.Faucet
                 State.BanMap[symbol].Remove(input.Target);
             }
 
+            Context.Fire(new Banned
+            {
+                Symbol = symbol,
+                Target = input.Target,
+                IsBanned = input.IsBan
+            });
+
+            return new Empty();
+        }
+
+        public override Empty Send(SendInput input)
+        {
+            var symbol = ReturnNativeSymbolIfEmpty(input.Symbol);
+            AssertSenderIsOwner(symbol);
+            State.TokenContract.Transfer.Send(new TransferInput
+            {
+                To = input.Target,
+                Symbol = symbol,
+                Amount = input.Amount
+            });
+
+            Context.Fire(new Sent
+            {
+                Symbol = symbol,
+                Target = input.Target,
+                Amount = input.Amount
+            });
             return new Empty();
         }
 
@@ -117,12 +163,19 @@ namespace AElf.Contracts.Faucet
                     $"Can take {symbol} again after {nextAvailableTime}");
             }
 
-            var amount = Math.Max(State.AmountLimitMap[symbol], input.Amount);
+            var amount = Math.Max(State.LimitAmountMap[symbol], input.Amount);
             State.TokenContract.Transfer.Send(new TransferInput
             {
                 Symbol = symbol,
                 Amount = amount,
                 To = Context.Sender
+            });
+
+            Context.Fire(new Taken
+            {
+                Symbol = symbol,
+                Amount = amount,
+                User = Context.Sender
             });
             return new Empty();
         }
@@ -146,6 +199,13 @@ namespace AElf.Contracts.Faucet
                 To = Context.Self,
                 Amount = amount,
                 Symbol = symbol
+            });
+
+            Context.Fire(new Returned
+            {
+                Symbol = symbol,
+                User = Context.Sender,
+                Amount = amount
             });
             return new Empty();
         }
