@@ -163,7 +163,7 @@ namespace AElf.Contracts.Faucet
                     $"Can take {symbol} again after {nextAvailableTime}");
             }
 
-            var amount = Math.Max(State.LimitAmountMap[symbol], input.Amount);
+            var amount = Math.Min(State.LimitAmountMap[symbol], input.Amount);
             State.TokenContract.Transfer.Send(new TransferInput
             {
                 Symbol = symbol,
