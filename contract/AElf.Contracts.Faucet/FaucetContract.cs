@@ -230,6 +230,22 @@ namespace AElf.Contracts.Faucet
             return status;
         }
 
+        public override Int64Value GetLimitAmount(StringValue input)
+        {
+            return new Int64Value
+            {
+                Value = State.LimitAmountMap[input.Value]
+            };
+        }
+
+        public override Int64Value GetIntervalMinutes(StringValue input)
+        {
+            return new Int64Value
+            {
+                Value = State.IntervalMinutesMap[input.Value]
+            };
+        }
+
         private void AssertSenderIsOwner(string symbol)
         {
             Assert(Context.Sender == State.OwnerMap[symbol], $"No permission to operate faucet of {symbol}.");
@@ -238,11 +254,6 @@ namespace AElf.Contracts.Faucet
         private void AssertSenderIsAdmin()
         {
             Assert(Context.Sender == State.OwnerMap[Context.Variables.NativeSymbol], "No permission.");
-        }
-
-        private void AssertFaucetIsOff(string symbol)
-        {
-            Assert(State.OnAtMap[symbol] == null, $"Faucet of {symbol} is on.");
         }
 
         private void AssertFaucetIsOn(string symbol)
