@@ -11,7 +11,7 @@ namespace AElf.Contracts.Faucet
     public class FaucetContractTests : FaucetContractTestBase
     {
         [Fact]
-        public async Task Test()
+        public async Task PipelineTest()
         {
             // Get a stub for testing.
             var keyPair = SampleAccount.Accounts.First().KeyPair;
@@ -30,6 +30,16 @@ namespace AElf.Contracts.Faucet
                 });
                 faucetStatus.IsOn.ShouldBeFalse();
                 faucetStatus.TurnAt.ShouldBeNull();
+            }
+
+            // User failed to take.
+            {
+                var executionResult = await userStub.Take.SendWithExceptionAsync(new TakeInput
+                {
+                    Symbol = "ELF",
+                    Amount = 100_00000000
+                });
+                executionResult.TransactionResult.Error.ShouldContain("never turned on.");
             }
 
             // Turn on.
@@ -64,6 +74,15 @@ namespace AElf.Contracts.Faucet
                 Amount = 1000_00000000
             });
 
+            // Check faucet status.
+            {
+                var faucetStatus = await adminStub.GetFaucetStatus.CallAsync(new StringValue
+                {
+                    Value = "ELF"
+                });
+                faucetStatus.IsOn.ShouldBeTrue();
+                faucetStatus.TurnAt.ShouldNotBeNull();
+            }
 
             // User takes.
             {
@@ -102,6 +121,12 @@ namespace AElf.Contracts.Faucet
                 balance.ShouldBe(0);
             }
 
+            // Cannot turn on twice.
+            {
+                var executionResult = await adminStub.TurnOn.SendWithExceptionAsync(new TurnInput());
+                executionResult.TransactionResult.Error.ShouldContain("is on");
+            }
+
             // Turn off.
             await adminStub.TurnOff.SendAsync(new TurnInput());
 
@@ -116,12 +141,40 @@ namespace AElf.Contracts.Faucet
             }
 
             // User should be failed to take again.
-            var executionResult = await userStub.Take.SendWithExceptionAsync(new TakeInput
             {
-                Symbol = "ELF",
-                Amount = 100_00000000
-            });
-            executionResult.TransactionResult.Error.ShouldContain("is off");
+                var executionResult = await userStub.Take.SendWithExceptionAsync(new TakeInput
+                {
+                    Symbol = "ELF",
+                    Amount = 100_00000000
+                });
+                executionResult.TransactionResult.Error.ShouldContain("is off");
+            }
+
+            // Turn on again.
+            await adminStub.TurnOn.SendAsync(new TurnInput());
+
+            // Check faucet status.
+            {
+                var faucetStatus = await adminStub.GetFaucetStatus.CallAsync(new StringValue
+                {
+                    Value = "ELF"
+                });
+                faucetStatus.IsOn.ShouldBeTrue();
+                faucetStatus.TurnAt.ShouldNotBeNull();
+            }
+
+            // Turn off again.
+            await adminStub.TurnOff.SendAsync(new TurnInput());
+
+            // Check faucet status.
+            {
+                var faucetStatus = await adminStub.GetFaucetStatus.CallAsync(new StringValue
+                {
+                    Value = "ELF"
+                });
+                faucetStatus.IsOn.ShouldBeFalse();
+                faucetStatus.TurnAt.ShouldNotBeNull();
+            }
         }
     }
 }

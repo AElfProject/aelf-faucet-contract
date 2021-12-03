@@ -27,7 +27,7 @@ namespace AElf.Contracts.Faucet
             AssertSenderIsOwner(symbol);
             AssertFaucetIsOff(symbol);
             State.OffAtMap.Remove(symbol);
-            State.OnAtMap[symbol] = input.At == null ? Context.CurrentBlockTime : input.At;
+            State.OnAtMap[symbol] = Context.CurrentBlockTime;
             Context.Fire(new FaucetTurned
             {
                 IsTurnedOn = true,
@@ -42,7 +42,7 @@ namespace AElf.Contracts.Faucet
             AssertSenderIsOwner(symbol);
             AssertFaucetIsOn(symbol);
             State.OnAtMap.Remove(symbol);
-            State.OffAtMap[symbol] = input.At == null ? Context.CurrentBlockTime : input.At;
+            State.OffAtMap[symbol] = Context.CurrentBlockTime;
             Context.Fire(new FaucetTurned
             {
                 IsTurnedOn = false,
@@ -270,12 +270,23 @@ namespace AElf.Contracts.Faucet
 
         private void AssertFaucetIsOn(string symbol)
         {
-            Assert(State.OffAtMap[symbol] == null, $"Faucet of {symbol} is off.");
+            var offAt = State.OffAtMap[symbol];
+            var onAt = State.OnAtMap[symbol];
+            if (onAt == null && offAt == null)
+            {
+                throw new AssertionException($"Faucet of {symbol} never turned on.");
+            }
+
+            if (onAt == null)
+            {
+                throw new AssertionException($"Faucet of {symbol} is off.");
+            }
         }
 
         private void AssertFaucetIsOff(string symbol)
         {
-            Assert(State.OnAtMap[symbol] == null, $"Faucet of {symbol} is on.");
+            var onAt = State.OnAtMap[symbol];
+            Assert(onAt == null, $"Faucet of {symbol} is on.");
         }
 
         private string ReturnNativeSymbolIfEmpty(string symbol)
