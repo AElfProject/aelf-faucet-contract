@@ -25,6 +25,7 @@ namespace AElf.Contracts.Faucet
         {
             var symbol = ReturnNativeSymbolIfEmpty(input.Symbol);
             AssertSenderIsOwner(symbol);
+            AssertFaucetIsOff(symbol);
             State.OffAtMap.Remove(symbol);
             State.OnAtMap[symbol] = input.At == null ? Context.CurrentBlockTime : input.At;
             Context.Fire(new FaucetTurned
@@ -39,6 +40,7 @@ namespace AElf.Contracts.Faucet
         {
             var symbol = ReturnNativeSymbolIfEmpty(input.Symbol);
             AssertSenderIsOwner(symbol);
+            AssertFaucetIsOn(symbol);
             State.OnAtMap.Remove(symbol);
             State.OffAtMap[symbol] = input.At == null ? Context.CurrentBlockTime : input.At;
             Context.Fire(new FaucetTurned
@@ -59,7 +61,6 @@ namespace AElf.Contracts.Faucet
             Context.Fire(new FaucetCreated
             {
                 Owner = input.Owner,
-                Amount = input.Amount,
                 Symbol = input.Symbol
             });
             return new Empty();
@@ -248,6 +249,15 @@ namespace AElf.Contracts.Faucet
             };
         }
 
+        public override BoolValue IsBannedByOwner(IsBannedByOwnerInput input)
+        {
+            var symbol = ReturnNativeSymbolIfEmpty(input.Symbol);
+            return new BoolValue
+            {
+                Value = State.BanMap[symbol][input.Target]
+            };
+        }
+
         private void AssertSenderIsOwner(string symbol)
         {
             Assert(Context.Sender == State.OwnerMap[symbol], $"No permission to operate faucet of {symbol}.");
@@ -261,6 +271,11 @@ namespace AElf.Contracts.Faucet
         private void AssertFaucetIsOn(string symbol)
         {
             Assert(State.OffAtMap[symbol] == null, $"Faucet of {symbol} is off.");
+        }
+
+        private void AssertFaucetIsOff(string symbol)
+        {
+            Assert(State.OnAtMap[symbol] == null, $"Faucet of {symbol} is on.");
         }
 
         private string ReturnNativeSymbolIfEmpty(string symbol)
