@@ -164,6 +164,8 @@ namespace AElf.Contracts.Faucet
             }
 
             var amount = Math.Min(State.LimitAmountMap[symbol], input.Amount);
+            Assert(amount > 0,
+                $"Cannot take {input.Amount} from {symbol} faucet due to either limit amount ({State.LimitAmountMap[symbol]}) or input amount ({input.Amount}) is negative or zero.");
             State.TokenContract.Transfer.Send(new TransferInput
             {
                 Symbol = symbol,
