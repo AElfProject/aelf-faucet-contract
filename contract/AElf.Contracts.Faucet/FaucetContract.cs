@@ -174,6 +174,8 @@ namespace AElf.Contracts.Faucet
                 To = Context.Sender
             });
 
+            State.LatestTakeTimeMap[symbol][Context.Sender] = Context.CurrentBlockTime;
+
             Context.Fire(new Taken
             {
                 Symbol = symbol,
